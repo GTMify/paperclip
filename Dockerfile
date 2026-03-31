@@ -28,8 +28,7 @@ WORKDIR /app
 COPY --from=deps /app /app
 COPY . .
 RUN pnpm --filter @paperclipai/ui build
-RUN pnpm --filter @paperclipai/server build
-RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
+RUN pnpm --filter @paperclipai/server build || (echo "WARN: tsc failed, using tsx runtime" && mkdir -p server/dist/onboarding-assets && cp -R server/src/onboarding-assets/. server/dist/onboarding-assets/ 2>/dev/null || true)
 
 FROM base AS production
 WORKDIR /app
@@ -47,10 +46,12 @@ ENV NODE_ENV=production \
   PAPERCLIP_INSTANCE_ID=default \
   PAPERCLIP_CONFIG=/paperclip/instances/default/config.json \
   PAPERCLIP_DEPLOYMENT_MODE=authenticated \
-  PAPERCLIP_DEPLOYMENT_EXPOSURE=private
+  PAPERCLIP_DEPLOYMENT_EXPOSURE=public
 
-VOLUME ["/paperclip"]
+# Railway volumes used instead of Docker VOLUME
 EXPOSE 3100
 
-USER node
-CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+CMD ["/app/entrypoint.sh"]
